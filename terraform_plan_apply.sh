@@ -67,14 +67,27 @@ function plan_apply_from_feat_branch
       do
         case $fb in
           "Quit" ) exit_cleanly;;
-          "Re-enter Jira ticket number..." ) break;;
-          * ) if [ "$fb" ]; then selected_fb=$fb; exit_cleanly "Add code here"; fi
+          * ) if [ "$fb" ]; then selected_fb=$fb; break; fi
         esac
       done
     else
       exit_cleanly "ERROR: No unmerged branches found!"
     fi
   done
+
+  if [[ "$selected_fb" =~ remotes/origin/(.*) ]]
+  then
+    local fb_name="${BASH_REMATCH[1]}"
+  else
+    exit_cleanly "Error in branch name"    # should never happen!!
+  fi
+
+  echo -e "\nChecking out to: $fb_name..."
+  do_or_die "git checkout $fb_name"
+
+  run_terraform_plan 'dev'
+
+  exit_cleanly "Exiting - no action taken"
 }
 
 function clone_and_checkout
@@ -86,6 +99,12 @@ function clone_and_checkout
   do_or_die "cd $REPO_NAME"
 }
 
+function run_terraform_plan
+{
+do_or_die 'terraform remote config -backend=s3 -backend-config="bucket=terraform-home-inf-state" -backend-config="key=home/terraform.tfstate" -backend-config="region=eu-west-1"'
+do_or_die 'terraform get'
+do_or_die 'terraform plan -var-file=environment/local/terraform.tfvars -input=false'
+}
 if [ "$SAFE_MODE" -eq 1 ]; then
   SAFE_MODE_STRING="SAFE MODE: "
   echo -e "NOTE: [Running in SAFE MODE]\n"
@@ -122,5 +141,23 @@ function echo_debug
   if [ "$DEBUG_ON" != 0 ]; then echo -e "DEBUG: $*"; fi
 }
 
+function confirm_or_exit
+{
+  local prompt=$1
+  local answer
+
+  local yn=""
+  echo
+  while [ ! $yn ]
+  do
+    read -p "$SAFE_MODE_STRING$prompt (y/n)? " answer
+     case $answer in
+         [yY] ) yn='y'; break;;
+         [nN] ) yn='n'; break;;
+     esac
+  done
+
+  if [ $yn != 'y' ]; then exit_cleanly; fi
+}
 
 main
