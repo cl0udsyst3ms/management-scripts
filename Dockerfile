@@ -2,7 +2,8 @@ FROM centos:7
 MAINTAINER "Marcin Taracha" <maarcintaracha@gmail.com>
 
 RUN yum install -y epel-release \
-	&& yum install -y unzip
+	&& yum install -y unzip \
+	&& yum install -y git
 
 
 RUN useradd -m developer -s /bin/bash -c "Docker image user"
