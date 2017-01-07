@@ -76,7 +76,7 @@ function plan_apply_target_module
   clone_and_checkout "master"
 
   read -p "Type the name of module you want to operate on: " target_module
-  
+  confirm_or_exit "You chose $target_module module. Do you want to continue"
   read -p "Do you want to plan or apply changes? (type 'plan' or 'apply' or 'q' to quit): " user_response
   if [ "$user_response" == "plan" ] 
   then
