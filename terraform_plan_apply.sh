@@ -38,6 +38,7 @@ function main()
 
   echo -e "\nOkay, what do you want to do..."
   select action in \
+    "Run a plan/apply on a target module - master branch" \
     "Run a plan/apply on a master" \
     "Run a plan on a Feature Branch" \
     "Run a apply on a Feature Branch" \
@@ -45,29 +46,62 @@ function main()
     "Quit" \
   ; do
   case $action in
+    "Run a plan/apply on a target module - master branch" ) plan_apply_target_module; break;;
     "Run a plan/apply on a master" ) plan_apply_from_master; break;;
     "Run a plan on a Feature Branch" ) plan_apply_from_feat_branch plan; break;;
     "Run a apply on a Feature Branch" ) plan_apply_from_feat_branch apply; break;;
-    "Destroy module" ) destroy_module; break;;
+    "Destroy module" ) destroy_target_module; break;;
     "Quit" ) exit_cleanly
   esac
 done
 exit_cleanly
 }
 
-function plan_apply_from_master
+function destroy_target_module 
 {
-  clone_and_checkout "master"
-  run_terraform 'plan'
+  local target_module
 
-  # Apply action confirmation
-  local required_response='apply'
+  clone_and_checkout "master"
+  
+  read -p "Type the name of module you want to destroy: " target_module
+  echo_info "You are going to destroy $target_module infrastructure!!!"
+  do_or_die "run_terraform 'destroy' $target_module"
+}
+
+function plan_apply_target_module
+{
+  local target_module
   local user_response
 
-  read -p "Are sure you want to apply changes? (type 'apply' or 'q' to quit): " user_response
-  if [ "$user_response" == "$required_response" ] 
+  clone_and_checkout "master"
+
+  read -p "Type the name of module you want to operate on: " target_module
+  confirm_or_exit "You chose $target_module module. Do you want to continue"
+  read -p "Do you want to plan or apply changes? (type 'plan' or 'apply' or 'q' to quit): " user_response
+  if [ "$user_response" == "plan" ] 
   then
-    do_or_die_safe "run_terraform 'apply'"
+    do_or_die "run_terraform 'plan' $target_module"
+  elif [ "$user_response" == "apply" ] 
+  then
+    do_or_die "run_terraform 'apply' $target_module"
+  else 
+    exit_cleanly "Exiting - no action taken"
+  fi
+}
+
+function plan_apply_from_master
+{
+  local user_response
+
+  clone_and_checkout "master"
+
+  read -p "Do you want to plan or apply changes? (type 'plan' or 'apply' or 'q' to quit): " user_response
+  if [ "$user_response" == "plan" ] 
+  then
+    do_or_die "run_terraform 'plan'"
+  elif [ "$user_response" == "apply" ] 
+  then
+    do_or_die "run_terraform 'apply'"
   else 
     exit_cleanly "Exiting - no action taken"
   fi
@@ -131,16 +165,29 @@ function run_terraform
 {
   local plan_apply=$1
   local terraform_module=$2
-  local plan_apply_string=""
-
+  if [ -n "$terraform_module" ]; then
+    local target_module_string="-target=module.$terraform_module"
+  fi
+  echo_info $target_module_string
   do_or_die 'terraform remote config -backend=s3 -backend-config="bucket=terraform-home-inf-state" -backend-config="key=home/terraform.tfstate" -backend-config="region=eu-west-1"'
   do_or_die 'terraform get'
-  do_or_die 'terraform plan -var-file=environment/local/terraform.tfvars -input=false'
   
-  if [ "$plan_apply" = "apply" ]
+  if [[ "$plan_apply" == "plan" ]]
+  then 
+    
+    do_or_die 'terraform plan $target_module_string -var-file=environment/local/terraform.tfvars -input=false'
+  elif [[ "$plan_apply" == "apply" ]]
   then
-    do_or_die_safe 'terraform apply -var-file=environment/local/terraform.tfvars -input=false'
+    do_or_die 'terraform plan $target_module_string -var-file=environment/local/terraform.tfvars -input=false'
+    echo_info "Applying in 3 seconds..."
+    sleep 3
+    do_or_die_safe 'terraform apply $target_module_string -var-file=environment/local/terraform.tfvars -input=false'
+  elif [[ "$plan_apply" == "destroy" ]] 
+  then
+    do_or_die 'terraform plan -destroy $target_module_string -var-file=environment/local/terraform.tfvars -input=false'
+    do_or_die_safe 'terraform destroy -target=module.ecs -var-file=environment/local/terraform.tfvars -input=false'
   fi
+
 }
 
 function do_or_die

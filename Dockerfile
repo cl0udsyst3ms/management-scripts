@@ -11,9 +11,9 @@ RUN useradd -m developer -s /bin/bash -c "Docker image user"
 ENV TERRAFORM_VERSION=0.8.2
 COPY terraform_${TERRAFORM_VERSION}_linux_amd64.zip /tmp/terraform_linux_amd64.zip
 RUN unzip /tmp/terraform_linux_amd64.zip -d /usr/local/bin
-
-COPY terraform_plan_apply.sh /home/developer/
+RUN mkdir -p /opt/terraform_management/
+COPY terraform_plan_apply.sh /opt/terraform_management/
 
 USER developer
 
-ENTRYPOINT [ "/home/developer/terraform_plan_apply.sh" ]
+ENTRYPOINT [ "/opt/terraform_management/terraform_plan_apply.sh" ]
